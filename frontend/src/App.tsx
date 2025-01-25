@@ -17,6 +17,18 @@ const App: React.FC = () => {
             });
     }, []);
 
+    useEffect(() => {
+      axios.get('http://127.0.0.1:5001/api/bye')
+          .then(response => {
+              setMessage(response.data.message);
+              setError(null);
+          })
+          .catch(error => {
+              console.error('There was an error!', error);
+              setError('Failed to fetch data from server');
+          });
+  }, []);
+
     return (
         <div className="App">
             <header className="App-header">
