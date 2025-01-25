@@ -32,6 +32,7 @@ oauth.register(
 
 @app.route("/login")
 def login():
+    print(url_for("callback", _external=True))
     return oauth.auth0.authorize_redirect(
         redirect_uri=url_for("callback", _external=True)
     )
@@ -67,7 +68,8 @@ def home():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=env.get("PORT", 3000))
-@app.route('/')
+
+'''@app.route('/')
 def app_introduction():
 
     return render_template('index.html', person='John Doe')
@@ -77,4 +79,4 @@ def heatmap():
     return render_template('heatmap.html')
 
 if __name__ == '__main__':
-    app.run()
+    app.run()'''
