@@ -12,7 +12,9 @@ from authlib.integrations.flask_client import OAuth
 from dotenv import find_dotenv, load_dotenv
 from flask import Flask, redirect, render_template, session, url_for, request, jsonify
 from ifem_award_api.patients import generate_mock_wait_time, TriageCategory
+from loaer import predict, unique_y
 
+import numpy as np
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:
@@ -227,7 +229,7 @@ def generate_patient_data():
         'arrival_time': patient.arrival_time,
         'triage_category': str(patient.triage_category.value),
         # 'queue_position': patient.queue_position,
-        'phase': str(patient.status['current_phase'].value),
+        'phase': "triaged",#str(patient.status['current_phase'].value),
         'labs': "PENDING",
         'imaging': "PENDING",
         'time_elapsed': float(patient.time_elapsed),
@@ -319,7 +321,6 @@ def wait_time(patient_id):
     # and return the patient's wait time as a JSON response
 
     patient = Patient.query.filter_by(patient_id=patient_id).first()
-    wait_time = generate_mock_wait_time(patient.triage_category)
     # Output: {
     #   estimatedWait: number,
     #   confidenceInterval: number,
@@ -334,9 +335,24 @@ def wait_time(patient_id):
 
     number_of_patients = len(patients)
 
+    # c = [0, 0, 0, 0, 0]
+    # for i in range(idx):
+    #     c[queue[i][0].triage_category.value - 1] += 1
+
+    c = [0, 0, 0, 0, 0]
+    for i in range(queue_position):
+        c[int(patients[i].triage_category) - 1] += 1
+
+    # patientNumberInQueue, triage, number of each triage in front of patient
+    output = predict([queue_position, patient.triage_category, *c])
+
+    # probabilities = {int(unique_y[i]) : float(prob) for i, prob in enumerate(output[0])}
+
+    wait_time = max(output, key=output.get)
+
     return {
         'estimatedWait': wait_time,
-        'confidenceInterval': 0.95,
+        'actual': output,
         'queuePosition': queue_position,
         'totalPatients': number_of_patients,
         'triageLevel': patient.triage_category
