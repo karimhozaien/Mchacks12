@@ -1,24 +1,24 @@
+import os
 import json
+import requests
 from os import environ as env
 from urllib.parse import quote_plus, urlencode
 
 from authlib.integrations.flask_client import OAuth
 from dotenv import find_dotenv, load_dotenv
-from flask import Flask, redirect, render_template, session, url_for, request
+from flask import Flask, redirect, render_template, session, url_for, request, jsonify
+from ifem_award_api.patients import generate_mock_wait_time, TriageCategory
 
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:
     load_dotenv(ENV_FILE)
 
-
 from flask_sqlalchemy import SQLAlchemy
 from ifem_award_api.patients import generate_mock_patient
 
-
 app = Flask(__name__)
 app.secret_key = env.get("APP_SECRET_KEY")
-
 
 oauth = OAuth(app)
 
@@ -36,11 +36,6 @@ oauth.register(
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hospital.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-
-#initaliase the database
-# patients -  hotpital ID, patient ID, arrival_time, triage_category, phase, labs, imaging, time_elapsed
-# admins - adminID, hostpitalID, name
-# hospitals - hospitalID, name, address, numberofdoctors
 
 # Define the Patients model
 class Patient(db.Model):
@@ -74,25 +69,86 @@ with app.app_context():
     db.create_all()
     print("Database tables created successfully.")
 
-    # Create a new hospital
-    new_hospital = Hospital(
-        name='St. Michael\'s Hospital',
-        address='30 Bond St, Toronto, ON M5B 1W8',
-        number_of_doctors=10
-    )
+    # if the number of hospitals in the database is 0, add five hospitals
 
-    
+        # Create new hospitals
+    hospitals = [
+        Hospital(id=101, name='Montreal General Hospital', address='1650 Cedar Ave, Montreal, QC H3G 1A4',
+                 number_of_doctors=50),
+        Hospital(id=102, name='Jewish General Hospital',
+                 address='3755 Côte-Sainte-Catherine Rd, Montreal, QC H3T 1E2', number_of_doctors=40),
+        Hospital(id=103, name='CHUM', address='1000 Saint-Denis St, Montreal, QC H2X 0C1', number_of_doctors=60),
+        Hospital(id=104, name='St. Mary\'s Hospital Center', address='3830 Lacombe Ave, Montreal, QC H3T 1M5',
+                 number_of_doctors=30),
+        Hospital(id=105, name='Shriners Hospitals for Children', address='1003 Decarie Blvd, Montreal, QC H4A 0A9',
+                 number_of_doctors=20)
+    ]
+
+    # Add the new hospitals to the database
+    for hospital in hospitals:
+        if Hospital.query.filter_by(id=hospital.id).first() is None:
+            db.session.add(hospital)
+    db.session.commit()
+
+
+
 @app.route("/login")
 def login():
-    print(url_for("callback", _external=True))
+    nonce = os.urandom(16).hex()
+    session['nonce'] = nonce
     return oauth.auth0.authorize_redirect(
-        redirect_uri=url_for("callback", _external=True))
+        redirect_uri=url_for("callback", _external=True),
+        nonce=nonce
+    )
 
 @app.route("/callback", methods=["GET", "POST"])
 def callback():
     token = oauth.auth0.authorize_access_token()
     session["user"] = token
-    return redirect("/")
+
+    # Extract user information from the token
+    nonce = session.pop('nonce', None)
+    user_info = oauth.auth0.parse_id_token(token, nonce=nonce)
+    user_email = user_info.get('email')
+
+    # Check if the user is in the admin database
+    admin = Admin.query.filter_by(name=user_email).first()
+    if admin is None:
+        # If the user is not an admin, redirect to addAdmin page
+        return redirect(url_for("add_admin"))
+
+    # If the user is an admin, store the hospital_id in the session
+    session['hospital_id'] = admin.hospital_id
+
+    return redirect(url_for("home"))
+
+
+@app.route("/addAdmin", methods=["GET", "POST"])
+def add_admin():
+    if request.method == 'POST':
+        # Get the admin details from the form
+        name = request.form.get('name')
+        hospital_id = request.form.get('hospital_id')
+
+        # Check if the hospital ID is valid
+        hospital = Hospital.query.filter_by(id=hospital_id).first()
+        if hospital is None:
+            # If the hospital ID is invalid, ask for a valid hospital ID again
+            return render_template("addAdmin.html", error="Invalid hospital ID. Please try again.")
+
+        # Create a new admin
+        new_admin = Admin(
+            hospital_id=hospital_id,
+            name=name
+        )
+
+        # Add the new admin to the database
+        db.session.add(new_admin)
+        db.session.commit()
+
+        return redirect(url_for('home'))
+
+    return render_template("addAdmin.html")
 
 
 @app.route("/logout")
@@ -228,7 +284,5 @@ def set_number_of_doctors():
     db.session.commit()
     return {'number_of_doctors': hospital.number_of_doctors}
 
-
-
-if __name__ == '__main__':
+if __name__ == '__main__'
     app.run(port=8000)
