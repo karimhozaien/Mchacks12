@@ -231,4 +231,4 @@ def set_number_of_doctors():
 
 
 if __name__ == '__main__':
-    app.run(port=5000)
+    app.run(port=5000, hosts="0.0.0.0")
