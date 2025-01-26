@@ -164,7 +164,6 @@ def create_new_patient():
     db.session.add(new_patient)
     db.session.commit()
 
-# protected
 @app.route('/patients/<hospital_id>', methods=['GET'])
 def patients(hospital_id):
     # Retrieve all patients from the database with the given hospital_id
@@ -232,4 +231,4 @@ def set_number_of_doctors():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(port=8000)
