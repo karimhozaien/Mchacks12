@@ -2,7 +2,6 @@ from datetime import datetime
 import os
 import json
 import random
-import requests
 # import flask cors
 from flask_cors import CORS
 from os import environ as env
