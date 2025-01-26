@@ -1,0 +1,18 @@
+<!-- @app.route('/qrcode/<patient_id>', methods=['GET'])
+def qrcode(patient_id):
+    # return a QR code image for the patient with the given patient_id
+    qrcode = f'https://api.qrserver.com/v1/create-qr-code/?data=http://localhost:5000/patient/{patient_id}'
+    return render_template('qrcode.html', qrcode) -->
+
+ <!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>QR Code</title>
+</head>
+<body>
+    <h1>QR Code</h1>
+    <img src="{{ qrcode }}" alt="QR Code">
+</body>
+</html>
+

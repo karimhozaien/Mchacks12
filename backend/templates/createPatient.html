@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Create Patient</title>
+</head>
+<body>
+    <!-- use this content for jinja as ddephault vaalues of the form -->
+    <!-- {
+        'patient_id': patient.id,
+        'arrival_time': patient.arrival_time,
+        'triage_category': patient.triage_category.value,
+        # 'queue_position': patient.queue_position,
+        'phase': patient.status['current_phase'].value,
+        'labs': patient.status['investigations']['labs'].value,
+        'imaging': patient.status['investigations']['imaging'].value,
+        'time_elapsed': patient.time_elapsed,
+        'hospital_id': hospital_id
+    }
+    } -->
+    <h1>Create Patient</h1>
+    <form action="{{ url_for('create_new_patient') }}" method="post">
+        <label for="patient_id">Patient ID:</label>
+        <input type="text" id="patient_id" name="patient_id" required value="{{ patient_id }}">
+        <label for="arrival_time">Arrival Time:</label>
+        <input type="text" id="arrival_time" name="arrival_time" required value="{{ arrival_time }}">
+        <label for="triage_category">Triage Category:</label>
+        <input type="text" id="triage_category" name="triage_category" required value="{{ triage_category }}">
+        <label for="queue_position">Queue Position:</label>
+        <label for="phase">Phase:</label>
+        <input type="text" id="phase" name="phase" required value="{{ phase }}">
+        <label for="labs">Labs:</label>
+        <input type="text" id="labs" name="labs" required value="{{ labs }}">
+        <label for="imaging">Imaging:</label>
+        <input type="text" id="imaging" name="imaging" required value="{{ imaging }}">
+        <label for="time_elapsed">Time Elapsed:</label>
+        <input type="text" id="time_elapsed" name="time_elapsed" required value="{{ time_elapsed }}">
+        <label for="hospital_id">Hospital ID:</label>
+        <input type="text" id="hospital_id" name="hospital_id" required value="{{ hospital_id }}">
+        <button type="submit">Create Patient</button>
+
+</body>
+</html>

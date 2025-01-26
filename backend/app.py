@@ -1,6 +1,10 @@
+from datetime import datetime
 import os
 import json
+import random
 import requests
+# import flask cors
+from flask_cors import CORS
 from os import environ as env
 from urllib.parse import quote_plus, urlencode
 
@@ -18,6 +22,7 @@ from flask_sqlalchemy import SQLAlchemy
 from ifem_award_api.patients import generate_mock_patient
 
 app = Flask(__name__)
+CORS(app)
 app.secret_key = env.get("APP_SECRET_KEY")
 
 oauth = OAuth(app)
@@ -88,7 +93,26 @@ with app.app_context():
     for hospital in hospitals:
         if Hospital.query.filter_by(id=hospital.id).first() is None:
             db.session.add(hospital)
+
+    for x in range(0, 4):
+        test_patient = generate_mock_patient()
+        print(test_patient)
+        new_patient = Patient(
+            hospital_id=random.choice([101, 102, 103, 104, 105]),
+            patient_id=int(test_patient.id[5:]),  # Ensure this slice is valid
+            arrival_time=test_patient.arrival_time,
+            triage_category=str(test_patient.triage_category.value),  # Ensure this is a string
+            phase=str(test_patient.status['current_phase'].value),  # Ensure this is a string
+            labs="PENDING",  # Confirm it's a string
+            imaging="PENDING",  # Confirm it's a string
+            time_elapsed=float(test_patient.time_elapsed)  # Ensure this is a float
+        )
+        db.session.add(new_patient)
+
+
     db.session.commit()
+
+
 
 
 
@@ -183,32 +207,53 @@ def generate_patient_data():
     # Return the patient's details as a JSON response
 
     patient = generate_mock_patient()
+
+    # Patient(
+        #     hospital_id=random.choice([101, 102, 103, 104, 105]),
+        #     patient_id=int(test_patient.id[5:]),  # Ensure this slice is valid
+        #     arrival_time=test_patient.arrival_time,
+        #     triage_category=str(test_patient.triage_category.value),  # Ensure this is a string
+        #     phase=str(test_patient.status['current_phase'].value),  # Ensure this is a string
+        #     labs="PENDING",  # Confirm it's a string
+        #     imaging="PENDING",  # Confirm it's a string
+        #     time_elapsed=float(test_patient.time_elapsed)  # Ensure this is a float
+        # )
+
+    # choose a random hospitalid from the list of hospitals
+    hospital_id = random.choice([101, 102, 103, 104, 105])
+
     return {
-        'patient_id': patient.id,
+        'patient_id': int(patient.id[5:]),
         'arrival_time': patient.arrival_time,
-        'triage_category': patient.triage_category.value,
+        'triage_category': str(patient.triage_category.value),
         # 'queue_position': patient.queue_position,
-        'phase': patient.status['current_phase'].value,
-        'labs': patient.status['investigations']['labs'].value,
-        'imaging': patient.status['investigations']['imaging'].value,
-        'time_elapsed': patient.time_elapsed
+        'phase': str(patient.status['current_phase'].value),
+        'labs': "PENDING",
+        'imaging': "PENDING",
+        'time_elapsed': float(patient.time_elapsed),
+        'hospital_id': hospital_id
     }
 
 # protected
-@app.route('/create_new_patient', methods=['POST'])
+@app.route('/create_new_patient', methods=['GET', 'POST'])
 def create_new_patient():
+    if request.method == 'GET':
+        return render_template('createPatient.html', **generate_patient_data())
     # get the patient details from the request
     # store the patient in the database
     # and return the patient's details as a JSON response, with a custom URL
 
     # Get the patient details from the request
-    data = request.json
+    data = request.form
+
+    # convert data["arrival_time"] to a datetime object in the format 2025-01-26 00:07:55.948915
+    arrival_time = datetime.strptime(data["arrival_time"], "%Y-%m-%d %H:%M:%S.%f")
 
     # Create a new patient
     new_patient = Patient(
-        hospital_id=session['hospital_id'],
+        hospital_id=data['hospital_id'],
         patient_id=data['patient_id'],
-        arrival_time=data['arrival_time'],
+        arrival_time=arrival_time,
         triage_category=data['triage_category'],
         phase=data['phase'],
         labs=data['labs'],
@@ -219,6 +264,15 @@ def create_new_patient():
     # Add the new patient to the database
     db.session.add(new_patient)
     db.session.commit()
+
+    # return a redirect to locaalhost:5000
+    return redirect(url_for('qrcode', patient_id=data['patient_id']))
+
+@app.route('/qrcode/<patient_id>', methods=['GET'])
+def qrcode(patient_id):
+    # return a QR code image for the patient with the given patient_id
+    qrcode = f'https://api.qrserver.com/v1/create-qr-code/?data=http://localhost:5000/patient/{patient_id}'
+    return render_template('qrcode.html', qrcode=qrcode)
 
 @app.route('/patients/<hospital_id>', methods=['GET'])
 def patients(hospital_id):
@@ -247,6 +301,8 @@ def patient(patient_id):
     # and return the patient's details as a JSON response
 
     patient = Patient.query.filter_by(patient_id=patient_id).first()
+    if patient is None:
+        return {'error': 'Patient not found'}, 404
     return {
         'patient_id': patient.patient_id,
         'arrival_time': patient.arrival_time,
@@ -257,7 +313,49 @@ def patient(patient_id):
         'time_elapsed': patient.time_elapsed
     }
 
+@app.route('/patient/<patient_id>/wait-time', methods=['GET'])
+def wait_time(patient_id):
+    # Retrieve the patient from the database
+    # and return the patient's wait time as a JSON response
 
+    patient = Patient.query.filter_by(patient_id=patient_id).first()
+    wait_time = generate_mock_wait_time(patient.triage_category)
+    # Output: {
+    #   estimatedWait: number,
+    #   confidenceInterval: number,
+    #   queuePosition: number,
+    #   totalPatients: number,
+    #   triageLevel: string
+    # }
+
+    # get all the patients in the same hostipal as the patient, sort them by arrival time, aan get the index of the patient
+    patients = Patient.query.filter_by(hospital_id=patient.hospital_id).order_by(Patient.arrival_time).all()
+    queue_position = patients.index(patient) + 1
+
+    number_of_patients = len(patients)
+
+    return {
+        'estimatedWait': wait_time,
+        'confidenceInterval': 0.95,
+        'queuePosition': queue_position,
+        'totalPatients': number_of_patients,
+        'triageLevel': patient.triage_category
+    }
+
+@app.route('/hospitals/nearby', methods=['GET'])
+def nearby_hospitals():
+    # return all the hospitals in the database as a JSON response
+    hospitals = Hospital.query.all()
+    hospitals_data = []
+    for hospital in hospitals:
+        hospitals_data.append({
+            'hospital_id': hospital.id,
+            'hospital_name': hospital.name,
+            'hospital_address': hospital.address,
+            'wait_time': generate_mock_wait_time(TriageCategory.LESS_URGENT)
+        })
+
+    return {'hospitals': hospitals_data}
 
 @app.route('/gethospital/<hospital_id>', methods=['GET'])
 def get_number_of_doctors(hospital_id):
@@ -284,5 +382,5 @@ def set_number_of_doctors():
     db.session.commit()
     return {'number_of_doctors': hospital.number_of_doctors}
 
-if __name__ == '__main__'
+if __name__ == '__main__':
     app.run(port=8000)
