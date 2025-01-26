@@ -4,7 +4,7 @@ from urllib.parse import quote_plus, urlencode
 
 from authlib.integrations.flask_client import OAuth
 from dotenv import find_dotenv, load_dotenv
-from flask import Flask, redirect, render_template, session, url_for
+from flask import Flask, redirect, render_template, session, url_for, request
 
 
 ENV_FILE = find_dotenv()
@@ -86,7 +86,7 @@ with app.app_context():
 def login():
     print(url_for("callback", _external=True))
     return oauth.auth0.authorize_redirect(
-        redirect_uri=url_for("callback", _external=True)
+        redirect_uri=url_for("callback", _external=True))
 
 @app.route("/callback", methods=["GET", "POST"])
 def callback():
@@ -164,7 +164,6 @@ def create_new_patient():
     db.session.add(new_patient)
     db.session.commit()
 
-# protected
 @app.route('/patients/<hospital_id>', methods=['GET'])
 def patients(hospital_id):
     # Retrieve all patients from the database with the given hospital_id
@@ -232,4 +231,4 @@ def set_number_of_doctors():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(port=8000)
